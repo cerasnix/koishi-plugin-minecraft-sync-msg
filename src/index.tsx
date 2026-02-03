@@ -2,9 +2,10 @@ import { Context, Schema, Logger, h, Bot, Fragment } from 'koishi'
 import { WebSocket, RawData } from 'ws'
 import { Rcon } from 'rcon-client'
 import { getListeningEvent, getSubscribedEvents, wsConf, rconConf } from './values'
+import { loadLangMap, renderTranslate, LangMap } from './mc-lang'
 import mcWss from './mcwss'
-import zhCN from './locale/zh-CN.yml'
-import enUS from './locale/en-US.yml'
+const zhCN = require('./locale/zh-CN.json')
+const enUS = require('./locale/en-US.json')
 
 export const name = 'minecraft-sync-msg'
 
@@ -36,6 +37,7 @@ class MinecraftSyncMsg {
   private pl_fork: any
   private enUS:any
   private zhCN:any
+  private langMap: LangMap | null = null
 
   constructor(private ctx: Context, private config: MinecraftSyncMsg.Config) {
     this.initialize()
@@ -48,6 +50,7 @@ class MinecraftSyncMsg {
     this.setupDisposeHandler()
     this.ctx.i18n.define('zh-CN', zhCN)
     this.ctx.i18n.define('en-US', enUS)
+    this.langMap = loadLangMap(this.config.mcLangPath, logger)
   }
 
   private setupRcon() {
@@ -141,6 +144,19 @@ class MinecraftSyncMsg {
     }
     
     const eventName = data.event_name ? getListeningEvent(data.event_name) : ''
+    if (this.config.debug) {
+      logger.info(`[debug] ws raw: ${dataStr}`)
+      logger.info(`[debug] ws parsed: ${JSON.stringify({
+        event_name: data.event_name,
+        mapped_event: eventName,
+        server_name: data.server_name,
+        message: data.message,
+        command: data.command,
+        achievement: data.achievement,
+        death: data.death,
+        player: data.player,
+      })}`)
+    }
 
     if (!getSubscribedEvents(this.config.event).includes(eventName)) return;
   
@@ -157,12 +173,35 @@ class MinecraftSyncMsg {
       sendMsg = sendMsg.replace(sendImage, `<img src="${sendImage}" />`)
     }
 
-    if (eventName === 'PlayerAchievementEvent' && data.player) {
-      sendMsg = this.ctx.i18n.render([this.config.locale? this.config.locale:'zh-CN'], [`minecraft-sync-msg.action.${eventName}`],[data.player?.nickname, data.achievement.text])
-    } else
-      sendMsg = this.ctx.i18n.render([this.config.locale? this.config.locale:'zh-CN'], [`minecraft-sync-msg.action.${eventName}`],[data.player?.nickname, sendMsg])
+    const locale = this.config.locale ? this.config.locale : 'zh-CN'
+    const allowEmpty = eventName === 'PlayerAchievementEvent' || eventName === 'PlayerDeathEvent'
+    if (eventName === 'PlayerAchievementEvent') {
+      const translation = data?.achievement?.translation || data?.achievement?.translate
+      const translated = renderTranslate(translation, this.langMap)
+      const achievementText = translated || translation?.text
+      if (achievementText) {
+        sendMsg = achievementText
+      } else if (sendMsg) {
+        // keep server message text
+      } else {
+        sendMsg = ''
+      }
+    } else if (eventName === 'PlayerDeathEvent') {
+      const translation = data?.death?.translation || data?.death?.translate || data?.death
+      const translated = renderTranslate(translation, this.langMap)
+      const deathText = translated || translation?.text
+      if (deathText) {
+        sendMsg = deathText
+      } else if (sendMsg) {
+        // keep server message text
+      } else {
+        sendMsg = ''
+      }
+    } else {
+      sendMsg = this.ctx.i18n.render([locale], [`minecraft-sync-msg.action.${eventName}`], [data.player?.nickname, sendMsg])
+    }
     
-    if (data.server_name && sendMsg) {
+    if (data.server_name && (sendMsg || allowEmpty)) {
       this.broadcastToChannels(sendMsg)
     }
   }

@@ -20,6 +20,8 @@ export interface wsConf {
     event: mcEvent,
     maxReconnectCount: number,
     maxReconnectInterval: number,
+    debug: boolean,
+    mcLangPath: string,
 }
 
 export const wsConf = Schema.object({
@@ -40,6 +42,10 @@ export const wsConf = Schema.object({
     .description("[仅客户端生效]客户端最大重连次数"),
     maxReconnectInterval: Schema.number().default(60000)
     .description("[仅客户端生效]客户端单次重连时间(ms)"),
+    debug: Schema.boolean().default(false)
+    .description("调试模式：输出收到的原始事件数据"),
+    mcLangPath: Schema.string().default('/koishi/data/mcLang/zh_cn.json')
+    .description("Minecraft语言包JSON路径（文件或目录）"),
 }).collapse().description("Websocket配置")
 
 export interface rconConf {

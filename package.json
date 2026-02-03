@@ -38,5 +38,12 @@
   "dependencies": {
     "rcon-client": "^4.2.5",
     "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "yaml": "^2.8.1"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/convert-locale.cjs"
   }
 }

@@ -2,8 +2,9 @@ import { Context, Logger, Schema, h, Bot } from 'koishi'
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { getListeningEvent, getSubscribedEvents, wsConf } from './values'
-import zhCN from './locale/zh-CN.yml'
-import enUS from './locale/en-US.yml'
+import { loadLangMap, renderTranslate, LangMap } from './mc-lang'
+const zhCN = require('./locale/zh-CN.json')
+const enUS = require('./locale/en-US.json')
 
 class mcWss {
     private conf: mcWss.Config;
@@ -11,10 +12,12 @@ class mcWss {
     private wss: WebSocketServer;
     private ctx: Context;
     private connectedClients: Set<WebSocket> = new Set();
+    private langMap: LangMap | null = null;
 
     constructor(ctx: Context, cfg: mcWss.Config) {
         this.conf = cfg;
         this.ctx = ctx;
+        this.langMap = loadLangMap(this.conf.mcLangPath, this.logger);
         
         ctx.on('ready', async () => {
             this.ctx.i18n.define('zh-CN', zhCN)
@@ -79,6 +82,18 @@ class mcWss {
                 this.ctx.logger.info(`收到来自客户端的消息: ${buffer.toString()}`);
                 const data = JSON.parse(buffer.toString())
                 let eventName = data.event_name? getListeningEvent(data.event_name):'';
+                if (this.conf.debug) {
+                    this.ctx.logger.info(`[debug] ws parsed: ${JSON.stringify({
+                        event_name: data.event_name,
+                        mapped_event: eventName,
+                        server_name: data.server_name,
+                        message: data.message,
+                        command: data.command,
+                        achievement: data.achievement,
+                        death: data.death,
+                        player: data.player,
+                    })}`)
+                }
                 if (!getSubscribedEvents(this.conf.event).includes(eventName)) return
 
                 let sendMsg:any = h.unescape(data.message ? data.message : data.command? data.command : '' ).replaceAll('&amp;','&').replaceAll(/<\/?template>/gi,'').replaceAll(/§./g,'')
@@ -89,15 +104,38 @@ class mcWss {
                     sendMsg = sendMsg.replace(sendImage, `<img src="${sendImage}" />`)
                 }
 
-                if (eventName === 'PlayerAchievementEvent' && data.player) {
-                    sendMsg = this.ctx.i18n.render([this.conf.locale? this.conf.locale:'zh-CN'], [`minecraft-sync-msg.action.${eventName}`],[data.player?.nickname, data.achievement.text])
-                } else
-                    sendMsg = this.ctx.i18n.render([this.conf.locale? this.conf.locale:'zh-CN'], [`minecraft-sync-msg.action.${eventName}`],[data.player?.nickname, sendMsg])
+                const locale = this.conf.locale ? this.conf.locale : 'zh-CN'
+                const allowEmpty = eventName === 'PlayerAchievementEvent' || eventName === 'PlayerDeathEvent'
+                if (eventName === 'PlayerAchievementEvent') {
+                    const translation = data?.achievement?.translation || data?.achievement?.translate
+                    const translated = renderTranslate(translation, this.langMap)
+                    const achievementText = translated || translation?.text
+                    if (achievementText) {
+                        sendMsg = achievementText
+                    } else if (sendMsg) {
+                        // keep server message text
+                    } else {
+                        sendMsg = ''
+                    }
+                } else if (eventName === 'PlayerDeathEvent') {
+                    const translation = data?.death?.translation || data?.death?.translate || data?.death
+                    const translated = renderTranslate(translation, this.langMap)
+                    const deathText = translated || translation?.text
+                    if (deathText) {
+                        sendMsg = deathText
+                    } else if (sendMsg) {
+                        // keep server message text
+                    } else {
+                        sendMsg = ''
+                    }
+                } else {
+                    sendMsg = this.ctx.i18n.render([locale], [`minecraft-sync-msg.action.${eventName}`], [data.player?.nickname, sendMsg])
+                }
 
                 if(data.server_name)
                   this.ctx.bots.forEach(async (bot: Bot) => {
                     const channels = this.conf.sendToChannel.filter(str => str.includes(`${bot.platform}`)).map(str => str.replace(`${bot.platform}:`, ''));
-                    sendMsg? bot.broadcast(channels, sendMsg, 0):'';
+                    if (sendMsg || allowEmpty) bot.broadcast(channels, sendMsg, 0)
                 });
             })
 

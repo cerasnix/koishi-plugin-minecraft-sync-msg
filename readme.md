@@ -11,7 +11,57 @@
 **注意**  
 rcon并非完全跟控制台一样所有命令都会有反馈
 
+# 本地化说明（成就/死亡）
+插件已支持使用 **Minecraft 语言包** 进行成就/死亡事件本地化，优先级如下：
+1. `translation.key/args` 使用 MC 语言包翻译
+2. `translation.text`（服务器已拼好的文本）
+3. `message`（服务器原始消息）
+4. 空字符串（极少出现）
+
+## 配置项
+`mcLangPath`：Minecraft 语言包 JSON 路径（文件或目录），默认：
+`/koishi/data/mcLang/zh_cn.json`
+
+`debug`：输出收到的原始事件数据（用于排查字段），默认 `false`
+
+## 如何准备语言包
+原版语言包在 `server.jar` 内：
+```
+assets/minecraft/lang/zh_cn.json
+```
+
+模组语言包在各自 jar 内：
+```
+assets/<modid>/lang/zh_cn.json
+```
+
+## 一键合并脚本
+项目已提供脚本：`scripts/merge_mc_lang.py`  
+从指定版本目录自动提取 **版本 jar + mods jar** 的 `zh_cn.json` 并合并输出。
+
+示例（默认输出到 `<version_dir>/mcLang/zh_cn.json`）：
+```bash
+python3 scripts/merge_mc_lang.py /Users/nickel/Downloads/HMCL/.minecraft/versions/1.21.1-NeoForge
+```
+
+自定义输出路径：
+```bash
+python3 scripts/merge_mc_lang.py /Users/nickel/Downloads/HMCL/.minecraft/versions/1.21.1-NeoForge \
+  -o /koishi/data/mcLang/zh_cn.json
+```
+
+跳过 mods：
+```bash
+python3 scripts/merge_mc_lang.py /path/to/version --no-mods
+```
+
 # CHANGELOG
+## Unreleased
+### 新增
+* 成就/死亡事件支持 MC 语言包翻译（`mcLangPath`）
+* `debug` 开关输出原始事件数据
+* 提供语言包合并脚本 `scripts/merge_mc_lang.py`
+
 ## v3.0.2
 ### 新增
 * 新增连接消息相关本地化（不包含logger）
