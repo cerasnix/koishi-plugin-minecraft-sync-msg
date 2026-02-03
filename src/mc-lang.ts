@@ -65,7 +65,11 @@ export function loadLangMap(langPath: string, logger?: LoggerLike): LangMap | nu
   try {
     const stat = fs.statSync(langPath)
     if (stat.isFile()) {
-      return readLangFile(langPath, logger)
+      const map = readLangFile(langPath, logger)
+      if (map) {
+        logger?.info?.(`[mc-lang] loaded ${Object.keys(map).length} keys from ${langPath}`)
+      }
+      return map
     }
     if (stat.isDirectory()) {
       const entries = fs.readdirSync(langPath)
@@ -77,6 +81,7 @@ export function loadLangMap(langPath: string, logger?: LoggerLike): LangMap | nu
         const map = readLangFile(filePath, logger)
         if (map) Object.assign(merged, map)
       }
+      logger?.info?.(`[mc-lang] loaded ${Object.keys(merged).length} keys from ${entries.length} file(s) in ${langPath}`)
       return merged
     }
   } catch (err: any) {

@@ -64,6 +64,11 @@ python3 scripts/merge_mc_lang.py \
   -o /koishi/data/mcLang/zh_cn.json
 ```
 
+## 进度公告（Toast）说明
+仅右上角 Toast 提示、聊天框不公告的进度无法被插件捕捉。
+数据包（Datapack）方案理论可行，但“覆盖所有模组进度”成本极高。
+更推荐使用 **Advancement Tweaker** 自定义任意 advancement 的聊天显示消息。
+
 # CHANGELOG
 ## Unreleased
 ### 新增

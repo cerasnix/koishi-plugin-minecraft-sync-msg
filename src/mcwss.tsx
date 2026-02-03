@@ -18,6 +18,9 @@ class mcWss {
         this.conf = cfg;
         this.ctx = ctx;
         this.langMap = loadLangMap(this.conf.mcLangPath, this.logger);
+        if (this.conf.debug && !this.langMap) {
+            this.logger.info(`[mc-lang] no lang map loaded from ${this.conf.mcLangPath}`);
+        }
         
         ctx.on('ready', async () => {
             this.ctx.i18n.define('zh-CN', zhCN)
@@ -109,6 +112,9 @@ class mcWss {
                 if (eventName === 'PlayerAchievementEvent') {
                     const translation = data?.achievement?.translation || data?.achievement?.translate
                     const translated = renderTranslate(translation, this.langMap)
+                    if (this.conf.debug && translation?.key && !translated) {
+                        this.logger.info(`[mc-lang] missing key: ${translation.key}`)
+                    }
                     const achievementText = translated || translation?.text
                     if (achievementText) {
                         sendMsg = achievementText
@@ -120,6 +126,9 @@ class mcWss {
                 } else if (eventName === 'PlayerDeathEvent') {
                     const translation = data?.death?.translation || data?.death?.translate || data?.death
                     const translated = renderTranslate(translation, this.langMap)
+                    if (this.conf.debug && translation?.key && !translated) {
+                        this.logger.info(`[mc-lang] missing key: ${translation.key}`)
+                    }
                     const deathText = translated || translation?.text
                     if (deathText) {
                         sendMsg = deathText

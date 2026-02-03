@@ -51,6 +51,9 @@ class MinecraftSyncMsg {
     this.ctx.i18n.define('zh-CN', zhCN)
     this.ctx.i18n.define('en-US', enUS)
     this.langMap = loadLangMap(this.config.mcLangPath, logger)
+    if (this.config.debug && !this.langMap) {
+      logger.info(`[mc-lang] no lang map loaded from ${this.config.mcLangPath}`)
+    }
   }
 
   private setupRcon() {
@@ -178,6 +181,9 @@ class MinecraftSyncMsg {
     if (eventName === 'PlayerAchievementEvent') {
       const translation = data?.achievement?.translation || data?.achievement?.translate
       const translated = renderTranslate(translation, this.langMap)
+      if (this.config.debug && translation?.key && !translated) {
+        logger.info(`[mc-lang] missing key: ${translation.key}`)
+      }
       const achievementText = translated || translation?.text
       if (achievementText) {
         sendMsg = achievementText
@@ -189,6 +195,9 @@ class MinecraftSyncMsg {
     } else if (eventName === 'PlayerDeathEvent') {
       const translation = data?.death?.translation || data?.death?.translate || data?.death
       const translated = renderTranslate(translation, this.langMap)
+      if (this.config.debug && translation?.key && !translated) {
+        logger.info(`[mc-lang] missing key: ${translation.key}`)
+      }
       const deathText = translated || translation?.text
       if (deathText) {
         sendMsg = deathText
