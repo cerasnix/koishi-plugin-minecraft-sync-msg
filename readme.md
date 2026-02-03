@@ -55,6 +55,15 @@ python3 scripts/merge_mc_lang.py /Users/nickel/Downloads/HMCL/.minecraft/version
 python3 scripts/merge_mc_lang.py /path/to/version --no-mods
 ```
 
+若原版 `jar` 内没有 `zh_cn.json`，需要从 `assets` 读取（HMCL 常见情况）：
+```bash
+python3 scripts/merge_mc_lang.py \
+  --assets-index /Users/nickel/Downloads/HMCL/.minecraft/assets/indexes/17.json \
+  --assets-dir /Users/nickel/Downloads/HMCL/.minecraft/assets/objects \
+  --mods-dir /Users/nickel/Downloads/HMCL/.minecraft/versions/1.21.1-NeoForge/mods \
+  -o /koishi/data/mcLang/zh_cn.json
+```
+
 # CHANGELOG
 ## Unreleased
 ### 新增

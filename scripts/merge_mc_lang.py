@@ -41,13 +41,56 @@ def load_lang_from_jar(jar_path: Path) -> tuple[dict, int]:
     return merged, count
 
 
+def load_lang_from_assets(index_path: Path, objects_dir: Path) -> tuple[dict, int]:
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+    except Exception as err:
+        print(f"[warn] failed to read assets index {index_path}: {err}", file=sys.stderr)
+        return {}, 0
+
+    obj = index.get("objects", {}).get("minecraft/lang/zh_cn.json")
+    if not obj or "hash" not in obj:
+        print(f"[warn] zh_cn.json not found in assets index {index_path}", file=sys.stderr)
+        return {}, 0
+
+    h = obj["hash"]
+    file_path = objects_dir / h[:2] / h
+    try:
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+    except Exception as err:
+        print(f"[warn] failed to read assets object {file_path}: {err}", file=sys.stderr)
+        return {}, 0
+
+    if not isinstance(data, dict):
+        return {}, 0
+
+    return data, 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Merge zh_cn.json from a Minecraft version jar and mods."
     )
     parser.add_argument(
         "version_dir",
+        nargs="?",
         help="Minecraft version directory (e.g. .../.minecraft/versions/1.21.1-NeoForge)",
+    )
+    parser.add_argument(
+        "--base-jar",
+        help="Path to vanilla Minecraft jar (e.g. .../.minecraft/versions/1.21.1/1.21.1.jar)",
+    )
+    parser.add_argument(
+        "--assets-index",
+        help="Path to assets index JSON (e.g. .../.minecraft/assets/indexes/1.21.1.json)",
+    )
+    parser.add_argument(
+        "--assets-dir",
+        help="Path to assets objects directory (e.g. .../.minecraft/assets/objects)",
+    )
+    parser.add_argument(
+        "--mods-dir",
+        help="Path to mods directory (e.g. .../.minecraft/versions/1.21.1-NeoForge/mods)",
     )
     parser.add_argument(
         "-o",
@@ -61,35 +104,83 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    version_dir = Path(args.version_dir).expanduser().resolve()
-    if not version_dir.is_dir():
-        print(f"[error] version_dir not found: {version_dir}", file=sys.stderr)
-        return 1
+    version_dir = None
+    if args.version_dir:
+        version_dir = Path(args.version_dir).expanduser().resolve()
+        if not version_dir.is_dir():
+            print(f"[error] version_dir not found: {version_dir}", file=sys.stderr)
+            return 1
 
-    output_path = (
-        Path(args.output).expanduser().resolve()
-        if args.output
-        else version_dir / "mcLang" / "zh_cn.json"
-    )
+    if args.output:
+        output_path = Path(args.output).expanduser().resolve()
+    elif version_dir:
+        output_path = version_dir / "mcLang" / "zh_cn.json"
+    else:
+        print("[error] output path required when no version_dir is provided", file=sys.stderr)
+        return 1
 
     merged: dict[str, str] = {}
     sources = 0
 
-    version_jar = find_version_jar(version_dir)
-    if version_jar:
-        data, count = load_lang_from_jar(version_jar)
+    base_jar = Path(args.base_jar).expanduser().resolve() if args.base_jar else None
+    assets_index = Path(args.assets_index).expanduser().resolve() if args.assets_index else None
+    assets_dir = Path(args.assets_dir).expanduser().resolve() if args.assets_dir else None
+    if base_jar:
+        data, count = load_lang_from_jar(base_jar)
         if count:
             merged.update(data)
             sources += count
-            print(f"[info] loaded {count} lang file(s) from {version_jar}")
+            print(f"[info] loaded {count} lang file(s) from {base_jar}")
         else:
-            print(f"[warn] no zh_cn.json in {version_jar}", file=sys.stderr)
-    else:
-        print(f"[warn] no version jar found in {version_dir}", file=sys.stderr)
+            print(f"[warn] no zh_cn.json in {base_jar}", file=sys.stderr)
+            if assets_index and assets_dir:
+                data, count = load_lang_from_assets(assets_index, assets_dir)
+                if count:
+                    merged.update(data)
+                    sources += count
+                    print(f"[info] loaded {count} lang file(s) from assets index {assets_index}")
+                else:
+                    print(f"[warn] no zh_cn.json from assets index {assets_index}", file=sys.stderr)
+    elif version_dir:
+        version_jar = find_version_jar(version_dir)
+        if version_jar:
+            data, count = load_lang_from_jar(version_jar)
+            if count:
+                merged.update(data)
+                sources += count
+                print(f"[info] loaded {count} lang file(s) from {version_jar}")
+            else:
+                print(f"[warn] no zh_cn.json in {version_jar}", file=sys.stderr)
+                if assets_index and assets_dir:
+                    data, count = load_lang_from_assets(assets_index, assets_dir)
+                    if count:
+                        merged.update(data)
+                        sources += count
+                        print(f"[info] loaded {count} lang file(s) from assets index {assets_index}")
+                    else:
+                        print(f"[warn] no zh_cn.json from assets index {assets_index}", file=sys.stderr)
+        else:
+            print(f"[warn] no version jar found in {version_dir}", file=sys.stderr)
+            if assets_index and assets_dir:
+                data, count = load_lang_from_assets(assets_index, assets_dir)
+                if count:
+                    merged.update(data)
+                    sources += count
+                    print(f"[info] loaded {count} lang file(s) from assets index {assets_index}")
+                else:
+                    print(f"[warn] no zh_cn.json from assets index {assets_index}", file=sys.stderr)
+    elif assets_index and assets_dir:
+        data, count = load_lang_from_assets(assets_index, assets_dir)
+        if count:
+            merged.update(data)
+            sources += count
+            print(f"[info] loaded {count} lang file(s) from assets index {assets_index}")
+        else:
+            print(f"[warn] no zh_cn.json from assets index {assets_index}", file=sys.stderr)
 
     if not args.no_mods:
-        mods_dir = version_dir / "mods"
-        if mods_dir.is_dir():
+        mods_dir = Path(args.mods_dir).expanduser().resolve() if args.mods_dir else (version_dir / "mods" if version_dir else None)
+        if mods_dir and mods_dir.is_dir():
             mod_jars = sorted(mods_dir.glob("*.jar"))
             if not mod_jars:
                 print(f"[info] no mod jars in {mods_dir}")
